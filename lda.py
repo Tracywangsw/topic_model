@@ -1,19 +1,26 @@
 import pynlpir
+from gensim import corpora, models
+import gensim
+import os
 
 class LDA(object):
   """docstring for LDA"""
   def __init__(self):
     self.stop_list = self._get_stop_list()
+    self.docs = self._part_document()
 
-  def part_document(self):
+  def _part_document(self):
     pynlpir.open()
-    text = ''
-    with open('memect_companyInfo/430003-北京时代-北京时代科技股份有限公司.txt') as f:
-      text = f.readline()
-      print(text)
-    words = pynlpir.segment(text,pos_tagging=False)
-    clean_words = [w for w in words if w not in self.stop_list]
-    return clean_words
+    docs = []
+    for dirname, dirnames,filenames in os.walk('./data'):
+      for filename in filenames:
+        path = os.path.join(dirname, filename)
+        text = ''
+        with open(path) as f: text = f.readline()
+        words = pynlpir.segment(text,pos_tagging=False)
+        clean_words = [w for w in words if w not in self.stop_list]
+        docs.append(clean_words)
+    return docs
 
   def _get_stop_list(self,path='new_list.txt'):
     stop_list = []
@@ -23,6 +30,15 @@ class LDA(object):
         l = l.strip()
         stop_list.append(l)
     return stop_list
+
+  def train(self,documents,num_topics):
+    dictionary = corpora.Dictionary(self.docs)
+    corpora = [dictionary.doc2bow(text) for text in self.docs]
+    # model = gensim.models.ldamodel.LdaModel(self.corpora, num_topics=num_topics, id2word=dictionary, alpha='auto', minimum_probability=0)
+    gensim.models.wrappers.LdaMallet('mallet-2.0.8RC3/bin/mallet', corpus=corpora, num_topics=num_topics, id2word=dictionary, workers=4, prefix=None, optimize_interval=10, iterations=2000)
+    perplex = model.bound(corpora)
+    return perplex
+
 
 def make_stop_list():
   with open('stop_list.txt') as f:
