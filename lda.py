@@ -13,25 +13,31 @@ class LDA(object):
     pynlpir.open()
     docs = []
     for dirname, dirnames,filenames in os.walk('./data'):
+      i = 0
       for filename in filenames:
+        i += 1
+        if i>4944: break
         path = os.path.join(dirname, filename)
         text = ''
-        with open(path) as f: text = f.readline()
-        words = pynlpir.segment(text,pos_tagging=False)
-        clean_words = [w for w in words if w not in self.stop_list]
-        docs.append(clean_words)
+        with open(path) as f:
+          print(path)
+          text = f.readline()
+          words = pynlpir.segment(text,pos_tagging=False)
+          clean_words = [w for w in words if w not in self.stop_list]
+          docs.append(clean_words)
+          print(len(docs))
     return docs
 
   def _get_stop_list(self,path='new_list.txt'):
     stop_list = []
-    with open(path) as f:
+    with open(path,encoding="utf-8") as f:
       lines = f.readlines()
       for l in lines:
         l = l.strip()
         stop_list.append(l)
     return stop_list
 
-  def train(self,documents,num_topics):
+  def train(self,num_topics):
     dictionary = corpora.Dictionary(self.docs)
     corpora = [dictionary.doc2bow(text) for text in self.docs]
     # model = gensim.models.ldamodel.LdaModel(self.corpora, num_topics=num_topics, id2word=dictionary, alpha='auto', minimum_probability=0)
