@@ -1,7 +1,8 @@
 import pynlpir
-from gensim import corpora, models
-import gensim
+#from gensim import corpora, models
+#import gensim
 import os
+import shutil
 
 class LDA(object):
   """docstring for LDA"""
@@ -60,3 +61,27 @@ def make_stop_list():
     for s in stop_list:
       f.write(s+'\n')
 
+def _part_document():
+  for dirname, dirnames,filenames in os.walk('./data'):
+    i = 0
+    for filename in filenames:
+      i += 1
+      if i>4944: break
+      path = os.path.join(dirname, filename)
+      text = ''
+      with open(path) as f:
+        print(path)
+        text = f.readline()
+      write_path = os.path.join('new_data', str(i)+'.txt')
+      with open(write_path,'w',encoding='utf-8') as f:
+        f.write(text)
+
+def move_file():
+  for dirname, dirnames,filenames in os.walk('./data'):
+    i = 0
+    for filename in filenames:
+      i += 1
+      if i>4944: break
+      if filename.endswith('_1.txt'):
+        path = os.path.join(dirname, filename)
+        shutil.move(path,"./new_data/"+filename)
