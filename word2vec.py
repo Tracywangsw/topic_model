@@ -11,7 +11,7 @@ import math
 import sys
 import pdb
 import chardet
-from chardet.universaldetector import UniversalDetector
+import logging
 
 class LoadData(object):
   """docstring for LoadData"""
@@ -21,7 +21,6 @@ class LoadData(object):
     self.doc_list = self.docs.keys()
 
   def _part_document(self):
-    pynlpir.open()
     docs = {}
     for dirname, dirnames,filenames in os.walk('dependence/new_docs'):
       for filename in filenames:
@@ -99,22 +98,21 @@ def line_ss():
 
 class Word2Vec(object):
   """docstring for Word2Vec"""
-  def __init__(self,docs,dictionary,corporas,size=300):
+  def __init__(self,docs,dictionary,corporas,size=300,word2vec_path='dependence/word2vec/word2vec_2'):
     self.size = size
     self.docs = docs
     self.dictionary = dictionary
     self.corporas = corporas
     self.tfidf = self.__tfidf_model()
-    self.model = self.__w2v_model(size)
+    self.model = self.load_word2vec_model(word2vec_path)
+    self.doc_vectors = self.get_doc_vector_map()
 
   def __tfidf_model(self):
     tfidf = gensim.models.tfidfmodel.TfidfModel(self.corporas.values())
     return tfidf
 
-  def __w2v_model(self,size):
-    sentences = gensim.models.word2vec.LineSentence('dependence/corporas/wiki_cn.txt')
-    model = gensim.models.word2vec.Word2Vec(sentences,size=size,window=5,min_count=5,workers=4)
-    model.save('word2vec')
+  def load_word2vec_model(self,path):
+    model = gensim.models.word2vec.Word2Vec.load(path)
     return model
 
   def get_doc_tfidf(self,index):
@@ -129,13 +127,65 @@ class Word2Vec(object):
   def get_doc_vector(self,index):
     doc_tfidf = self.get_doc_tfidf(index)
     doc_vector = np.array([0]*self.size,dtype=float)
+    word_count = 0
     for w in doc_tfidf:
       wordid,tfidf = w[:]
       if self.dictionary[wordid] in self.model.vocab.keys():
+        word_count += 1
         word_vector = self.get_word_vector(wordid)
-        doc_vector += tfidf*np.array(word_vector)/len(doc_tfidf)
+        doc_vector += tfidf*np.array(word_vector)/word_count
       else: print(self.dictionary[wordid])
     return doc_vector
+
+  def get_doc_vector_map(self):
+    vector_map = {}
+    for d in self.docs:
+      vector_map[d] = self.get_doc_vector(d)
+    return vector_map
+
+
+l = LoadData()
+w2v = Word2Vec(l.docs,l.dictionary,l.corporas,size=300)
+def query2words(query):
+  words = []
+  segs = query.split(' ')
+  for s in segs:
+    s = s.strip() ## need regularization
+    if s in w2v.model.vocab: words.append(s)
+    else:
+      pynlpir.open()
+      words.extend(pynlpir.segment(query,pos_tagging=False))
+  return words
+
+def query_relative_docs(query,top=10,val=0.5):
+  words = query2words(query)
+  docs = []
+  if words:
+    for doc in w2v.doc_vectors:
+      avg_sim = np.average([word_doc_sim(w,doc) for w in words])
+      if avg_sim>val: docs.append([avg_sim,doc])
+    docs.sort(reverse=True)
+  return [d[1] for d in docs]
+
+def word_doc_sim(word,doc):
+  sim = -1
+  if word in w2v.model.vocab.keys():
+    word_vector = w2v.model[word]
+    sim = cosin_simiarity(w2v.doc_vectors[doc],word_vector)
+  return sim
+
+
+def word_for_docs(word,val):
+  doc_sim = {}
+  if word in w2v.model.vocab.keys():
+    query_vector = w2v.model[word]
+    for doc,vec in w2v.doc_vectors.items():
+      sim = cosin_simiarity(vec,query_vector)
+      if sim>val: doc_sim[doc] = sim
+    if not doc_sim: print('no documents is relative to the word with correlation of '+str(val))
+  else: print(word + 'not in vocab')
+  return doc_sim
+
 
 def cosin_simiarity(vector_a,vector_b):
   norm_a = np.linalg.norm(vector_a)
@@ -181,11 +231,16 @@ def part_sentence(stop_list):
         wf.writelines(lines)
         wf.close()
 
-
+def train_w2v_model(size,save_path='dependence/word2vec/word2vec_2'):
+  logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+  sentences = gensim.models.word2vec.LineSentence('dependence/corporas/wiki_cn.txt')
+  model = gensim.models.word2vec.Word2Vec(size=size,window=5,min_count=5,workers=4)
+  model.build_vocab(sentences)
+  model.train(sentences)
+  model.save(save_path)
+  return model
 
 def test():
   l = LoadData()
-  w2v = Word2Vec(l.docs,l.dictionary,l.corporas,size=50)
+  w2v = Word2Vec(l.docs,l.dictionary,l.corporas,size=300)
   save_document_similarity_matrix(w2v,l.doc_list,path='dependence/word2vec_similarity/')
-  # part_sentence(l.stop_list)
-  # l.write_sentences_per_doc()
