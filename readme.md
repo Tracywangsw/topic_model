@@ -2,7 +2,5 @@
 
 
 # to do:
-- set a value to filer companies
-- update company documents !!!
 - query segement and query string cleaning
-- how to rank when having more than one key-word
+- tfidf of query(what if query words is partly not in dictionary) 
